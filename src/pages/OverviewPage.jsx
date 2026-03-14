@@ -62,6 +62,18 @@ export default function OverviewPage({ days }) {
           sub={`${fmtInt(overview.invoices.period)} in period`}
         />
         <MetricCard
+          label="Total Uploads"
+          value={fmtInt(overview.invoices.total_uploads)}
+          sub={`${fmtInt(overview.invoices.period_uploads)} in period`}
+          color={C.info}
+        />
+        <MetricCard
+          label="AI Extractions"
+          value={fmtInt(overview.invoices.total_extractions)}
+          sub={`${fmtInt(overview.invoices.period_extractions)} in period (incl. re-runs)`}
+          color={C.accent}
+        />
+        <MetricCard
           label="AI Spend (Period)"
           value={fmtUSD(overview.ai.period_cost_usd)}
           sub={`${fmtInt(overview.ai.period_api_calls)} API calls`}
