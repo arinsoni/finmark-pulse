@@ -1,0 +1,21 @@
+# Finmark Pulse — standalone deployment
+# Connects to the AP backend API for data.
+#
+# On the UAT server, runs alongside the AP stack on the same Docker network.
+# Set VITE_API_URL at build time to point to the backend.
+
+services:
+  pulse:
+    build:
+      context: .
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    ports:
+      - "${PULSE_PORT:-8081}:80"
+    networks:
+      - ap-shared-net
+
+networks:
+  ap-shared-net:
+    external: true
