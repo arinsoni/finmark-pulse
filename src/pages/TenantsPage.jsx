@@ -54,7 +54,6 @@ export default function TenantsPage({ days }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
             <StatBox label="Invoices (Total)" value={fmtInt(t.invoices_total)} />
             <StatBox label="Invoices (Period)" value={fmtInt(t.invoices_period)} />
-            <StatBox label="AP Value" value={`\u20A6${fmtInt(t.total_ap_value)}`} color={C.success} />
             <StatBox label="AI Cost (Period)" value={fmtUSD(t.ai_cost_period)} color={C.warning} />
             <StatBox label="AI Cost (Total)" value={fmtUSD(t.ai_cost_total)} color={C.warning} />
             <StatBox label="PO Lines" value={fmtInt(t.po_lines)} />
