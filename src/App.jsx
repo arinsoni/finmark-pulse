@@ -5,11 +5,13 @@ import LoginForm from "./components/LoginForm";
 import OverviewPage from "./pages/OverviewPage";
 import TenantsPage from "./pages/TenantsPage";
 import AIUsagePage from "./pages/AIUsagePage";
+import CostsPage from "./pages/CostsPage";
 import HealthPage from "./pages/HealthPage";
 
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "ai", label: "AI Usage" },
+  { id: "costs", label: "Costs" },
   { id: "tenants", label: "Tenants" },
   { id: "health", label: "Health" },
 ];
@@ -165,6 +167,7 @@ export default function App() {
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "24px 32px" }}>
         {tab === "overview" && <OverviewPage days={days} />}
         {tab === "ai" && <AIUsagePage days={days} />}
+        {tab === "costs" && <CostsPage days={days} />}
         {tab === "tenants" && <TenantsPage days={days} />}
         {tab === "health" && <HealthPage />}
       </main>
