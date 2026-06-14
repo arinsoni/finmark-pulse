@@ -1,12 +1,16 @@
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
-/* Access token lives in localStorage; the refresh token is an HttpOnly cookie
- * the browser sends automatically (credentials: "include"). So after the 1h
- * access token expires we silently mint a new one from the 7-day refresh
- * cookie — you stay logged in ~a week and only hit the CAPTCHA login once. */
+/* Auth, in order of preference:
+ * 1. VITE_PULSE_TOKEN — a pre-minted long-lived token (set in pulse/.env.local
+ *    by mint-pulse-token.sh). When present, Pulse skips the login screen
+ *    entirely → NO CAPTCHA, no password. Internal-only convenience.
+ * 2. Otherwise: access token in localStorage from a normal CAPTCHA login,
+ *    silently refreshed from the HttpOnly cookie (~7-day session). */
+
+export const PULSE_TOKEN = import.meta.env.VITE_PULSE_TOKEN || "";
 
 export function getAccessToken() {
-  return localStorage.getItem("ap_access_token");
+  return PULSE_TOKEN || localStorage.getItem("ap_access_token");
 }
 
 export function storeTokens(access) {

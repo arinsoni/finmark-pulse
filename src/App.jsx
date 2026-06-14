@@ -1,7 +1,17 @@
 import { useState, useEffect } from "react";
 import { C } from "./lib/theme";
-import { clearTokens } from "./lib/api";
+import { clearTokens, PULSE_TOKEN } from "./lib/api";
 import LoginForm from "./components/LoginForm";
+
+// Build a user object straight from a pre-minted token (no login/API call).
+function userFromToken(tok) {
+  try {
+    const p = JSON.parse(atob(tok.split(".")[1]));
+    return { id: p.sub, email: p.email, name: p.email, roles: p.roles || [p.role] };
+  } catch {
+    return null;
+  }
+}
 import OverviewPage from "./pages/OverviewPage";
 import TenantsPage from "./pages/TenantsPage";
 import AIUsagePage from "./pages/AIUsagePage";
@@ -20,6 +30,11 @@ const DAY_OPTIONS = [7, 14, 30, 60, 90];
 
 export default function App() {
   const [user, setUser] = useState(() => {
+    // Pre-minted token (pulse/.env.local) → log in automatically, no CAPTCHA.
+    if (PULSE_TOKEN) {
+      const u = userFromToken(PULSE_TOKEN);
+      if (u) return u;
+    }
     try {
       const stored = localStorage.getItem("pulse_user");
       return stored ? JSON.parse(stored) : null;
