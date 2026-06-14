@@ -16,9 +16,10 @@ export const DEFAULT_COST_CONFIG = {
   infraListPriceMonthly: 65,   // true run-rate (what it costs without credits)
   infraBilledMonthly: 0,       // what you actually pay today (credits cover it)
 
-  // AWS credits
-  creditBalanceRemaining: null, // ← fill from AWS Billing console → Credits
-  creditBurnMonthly: 65,        // credits absorb ~the full AWS list-price usage
+  // AWS credits — AWS Activate Founders ($1,000), confirmed 2026-06-14
+  creditBalanceRemaining: 955.48, // remaining (used $44.52 since Feb 2026)
+  creditExpiry: "2028-02-29",     // ⬅ HARD expiry — credit dies on this date regardless of balance
+  creditBurnMonthly: 15,          // actual ~$10–15/mo now (free tier covers most); rises toward ~$65 after free tier ends ~Feb 2027
 
   // Other recurring costs (USD/month)
   otherCosts: [

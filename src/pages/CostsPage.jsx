@@ -47,16 +47,27 @@ export default function CostsPage({ days }) {
   const cpiCash = invoicesPeriod ? (aiPeriod + proratedFixedCash) / invoicesPeriod : null;
   const cpiList = invoicesPeriod ? (aiPeriod + proratedFixedList) / invoicesPeriod : null;
 
-  // ── credit runway ──
+  // ── credit runway — bounded by BOTH balance/burn AND the hard expiry date ──
   const burn = Number(cfg.creditBurnMonthly) || 0;
   const bal = cfg.creditBalanceRemaining;
-  const runwayMonths = bal != null && burn > 0 ? bal / burn : null;
+  const balanceMonths = bal != null && burn > 0 ? bal / burn : null;
+  const now = new Date();
+  const expiry = cfg.creditExpiry ? new Date(cfg.creditExpiry) : null;
+  const expiryMonths = expiry ? (expiry - now) / (1000 * 60 * 60 * 24 * 30.44) : null;
+  // credits end at the EARLIER of: balance running out, or the expiry date
+  const candidates = [balanceMonths, expiryMonths].filter((m) => m != null);
+  const runwayMonths = candidates.length ? Math.min(...candidates) : null;
+  const expiryBinds = expiryMonths != null && (balanceMonths == null || expiryMonths <= balanceMonths);
   let runOutDate = null;
   if (runwayMonths != null) {
-    const d = new Date();
-    d.setMonth(d.getMonth() + Math.floor(runwayMonths));
-    d.setDate(d.getDate() + Math.round((runwayMonths % 1) * 30));
-    runOutDate = d.toISOString();
+    if (expiryBinds) {
+      runOutDate = expiry.toISOString();
+    } else {
+      const d = new Date();
+      d.setMonth(d.getMonth() + Math.floor(runwayMonths));
+      d.setDate(d.getDate() + Math.round((runwayMonths % 1) * 30));
+      runOutDate = d.toISOString();
+    }
   }
 
   const updateCfg = (patch) => { const next = { ...cfg, ...patch }; setCfg(next); saveCostConfig(next); };
@@ -91,7 +102,7 @@ export default function CostsPage({ days }) {
             </div>
             <div style={{ color: C.textDim, fontSize: 12, marginTop: 4 }}>
               {runwayMonths != null
-                ? `Credits cover infra (≈${fmtUSD(burn)}/mo). Projected to run out ~${fmtDate(runOutDate)} → then your bill jumps from ${fmtUSD(cashMonthly)}/mo to ${fmtUSD(listMonthly)}/mo.`
+                ? `${bal != null ? fmtUSD(bal) + " credit left" : "Credits"} — ends ~${fmtDate(runOutDate)} ${expiryBinds ? "(hard expiry date — balance won't run out first)" : "(balance runs out before expiry)"}. After that your bill goes from ${fmtUSD(cashMonthly)}/mo to ${fmtUSD(listMonthly)}/mo.`
                 : `Infra is currently $0 (AWS credits cover the ≈${fmtUSD(cfg.infraListPriceMonthly)}/mo run-rate). Enter your remaining credit balance to see the runway.`}
             </div>
           </div>
@@ -154,6 +165,8 @@ export default function CostsPage({ days }) {
             <input type="number" style={numInput} value={cfg.infraBilledMonthly} onChange={(e) => updateCfg({ infraBilledMonthly: Number(e.target.value) })} />
             <label style={{ color: C.textDim, fontSize: 13 }}>AWS credit balance remaining ($)</label>
             <input type="number" style={numInput} value={cfg.creditBalanceRemaining ?? ""} placeholder="from console" onChange={(e) => updateCfg({ creditBalanceRemaining: e.target.value === "" ? null : Number(e.target.value) })} />
+            <label style={{ color: C.textDim, fontSize: 13 }}>Credit expiry date (YYYY-MM-DD)</label>
+            <input type="text" style={{ ...numInput, width: 130 }} value={cfg.creditExpiry ?? ""} placeholder="2028-02-29" onChange={(e) => updateCfg({ creditExpiry: e.target.value || null })} />
             <label style={{ color: C.textDim, fontSize: 13 }}>Credit burn / mo ($)</label>
             <input type="number" style={numInput} value={cfg.creditBurnMonthly} onChange={(e) => updateCfg({ creditBurnMonthly: Number(e.target.value) })} />
             {cfg.otherCosts.map((c, i) => (
