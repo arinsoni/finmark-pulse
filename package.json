@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "live": "PULSE_API_TARGET=https://pulse.ap.finmark.ai VITE_TURNSTILE_SITE_KEY=0x4AAAAAADg6ZHOZAZfDRROd vite --port 3001",
     "build": "vite build",
     "preview": "vite preview"
   },

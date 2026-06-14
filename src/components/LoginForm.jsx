@@ -1,23 +1,34 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { C } from "../lib/theme";
 import { apiFetch, storeTokens } from "../lib/api";
+import Turnstile, { TURNSTILE_ENABLED } from "./Turnstile";
 
 export default function LoginForm({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const turnstileRef = useRef(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    if (TURNSTILE_ENABLED && !captchaToken) {
+      setError("Please complete the CAPTCHA.");
+      return;
+    }
     setLoading(true);
 
     try {
       const res = await apiFetch("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, cf_turnstile_token: captchaToken }),
       });
+      // Turnstile tokens are single-use — mint a fresh one for the next attempt
+      turnstileRef.current?.reset();
+      setCaptchaToken("");
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Login failed");
@@ -122,6 +133,8 @@ export default function LoginForm({ onLogin }) {
             style={inputStyle}
           />
         </div>
+
+        <Turnstile ref={turnstileRef} onToken={setCaptchaToken} />
 
         <button
           type="submit"
