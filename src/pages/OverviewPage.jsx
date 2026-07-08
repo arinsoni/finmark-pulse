@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell, Legend, LineChart, Line, ReferenceLine,
 } from "recharts";
 import { C } from "../lib/theme";
 import { apiFetch } from "../lib/api";
@@ -48,6 +48,11 @@ export default function OverviewPage({ days }) {
   const tenantData = Object.entries(overview.invoices.by_tenant || {}).map(
     ([name, value]) => ({ name: name.toUpperCase(), invoices: value })
   );
+
+  // Fail-safe: `processing` is always present from the current backend, but guard
+  // against version skew (e.g. a backend rollback) so a missing field can't
+  // white-screen this internal ops dashboard when it's needed most.
+  const proc = overview.processing || {};
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -96,6 +101,12 @@ export default function OverviewPage({ days }) {
           value={overview.users.active}
           sub={overview.users.pending_approval > 0 ? `${overview.users.pending_approval} pending` : "all approved"}
           color={overview.users.pending_approval > 0 ? C.warning : C.success}
+        />
+        <MetricCard
+          label="Avg Processing Cycle"
+          value={proc.avg_cycle_secs != null ? `${(proc.avg_cycle_secs / 3600).toFixed(1)}h` : "—"}
+          sub={proc.sla_target_hours != null ? `SLA target ${proc.sla_target_hours}h · ${proc.meets_sla ? "within target" : "over target"}` : "—"}
+          color={proc.meets_sla ? C.success : C.danger}
         />
       </div>
 
@@ -186,6 +197,50 @@ export default function OverviewPage({ days }) {
             <div style={{ color: C.textMuted, fontSize: 13, padding: 40, textAlign: "center" }}>No data</div>
           )}
         </div>
+      </div>
+
+      {/* Processing Cycle / SLA — day-wise, per tenant */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20 }}>
+        <h3 style={{ color: C.text, fontSize: 14, fontWeight: 600, margin: "0 0 16px" }}>
+          Processing Cycle / Day{proc.sla_target_hours != null ? ` (SLA target ${proc.sla_target_hours}h)` : ""}
+        </h3>
+        {proc.daily?.length > 0 ? (
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={proc.daily}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="date" tick={{ fill: C.textMuted, fontSize: 10 }} tickFormatter={(d) => d.slice(5)} />
+              <YAxis tick={{ fill: C.textMuted, fontSize: 10 }} tickFormatter={(v) => `${v}h`} />
+              <Tooltip
+                contentStyle={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: C.textDim }}
+                formatter={(v) => [`${v}h`, undefined]}
+              />
+              <Legend wrapperStyle={{ fontSize: 11, color: C.textDim }} />
+              <ReferenceLine
+                y={proc.sla_target_hours}
+                stroke={C.warning}
+                strokeDasharray="4 4"
+                label={{ value: "SLA", fill: C.warning, fontSize: 10, position: "right" }}
+              />
+              {Array.from(
+                new Set(proc.daily.flatMap((d) => Object.keys(d).filter((k) => k !== "date")))
+              ).map((slug, i) => (
+                <Line
+                  key={slug}
+                  type="monotone"
+                  dataKey={slug}
+                  name={slug.toUpperCase()}
+                  stroke={[C.accent, C.info, C.success][i % 3]}
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div style={{ color: C.textMuted, fontSize: 13, padding: 40, textAlign: "center" }}>No data</div>
+        )}
       </div>
 
       {/* Per-Tenant + ERP Sync */}
