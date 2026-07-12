@@ -103,9 +103,11 @@ export default function OverviewPage({ days }) {
           color={overview.users.pending_approval > 0 ? C.warning : C.success}
         />
         <MetricCard
-          label="Avg Processing Cycle"
-          value={proc.avg_cycle_secs != null ? `${(proc.avg_cycle_secs / 3600).toFixed(1)}h` : "—"}
-          sub={proc.sla_target_hours != null ? `SLA target ${proc.sla_target_hours}h · ${proc.meets_sla ? "within target" : "over target"}` : "—"}
+          label="Processing Cycle (median)"
+          value={proc.median_cycle_secs != null ? `${(proc.median_cycle_secs / 3600).toFixed(1)}h` : "—"}
+          sub={proc.sla_target_hours != null
+            ? `SLA target ${proc.sla_target_hours}h · ${proc.meets_sla ? "within target" : "over target"}${proc.avg_cycle_secs != null ? ` · mean ${(proc.avg_cycle_secs / 3600).toFixed(1)}h` : ""}`
+            : "—"}
           color={proc.meets_sla ? C.success : C.danger}
         />
       </div>
