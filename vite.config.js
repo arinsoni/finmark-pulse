@@ -6,6 +6,10 @@ import react from '@vitejs/plugin-react'
 // Mac against LIVE data with no hosting/SSH (see package.json).
 const API_TARGET = process.env.PULSE_API_TARGET || 'http://localhost:5001'
 
+// Where /watch/* is proxied. Default = a locally-run watcher on :5055.
+// Mirrors the nginx prefix-strip so dev and prod behave identically.
+const WATCH_TARGET = process.env.PULSE_WATCH_TARGET || 'http://localhost:5055'
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -29,6 +33,14 @@ export default defineConfig({
             }
           })
         },
+      },
+      // Read-only AWS watcher (unauthenticated, outside /api). Strip the /watch
+      // prefix so /watch/status → /status, matching the nginx proxy.
+      '/watch': {
+        target: WATCH_TARGET,
+        changeOrigin: true,
+        secure: false,
+        rewrite: (p) => p.replace(/^\/watch/, ''),
       },
     },
   },

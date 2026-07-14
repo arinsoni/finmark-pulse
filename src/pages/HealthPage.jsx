@@ -1,12 +1,18 @@
 import { useState, useEffect } from "react";
 import { C } from "../lib/theme";
 import { apiFetch } from "../lib/api";
-import { fmtAgo } from "../lib/format";
+import { fmtAgo, fmtInt } from "../lib/format";
 import StatusDot from "../components/StatusDot";
+import MetricCard from "../components/MetricCard";
+import AlertBanner from "../components/AlertBanner";
+import { fetchWatchStatus } from "../lib/watch";
 
 export default function HealthPage() {
   const [health, setHealth] = useState(null);
   const [syncs, setSyncs] = useState([]);
+  const [overview, setOverview] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [infra, setInfra] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -15,10 +21,16 @@ export default function HealthPage() {
     Promise.all([
       apiFetch("/monitor/app-health").then((r) => r.json()),
       apiFetch("/monitor/erp-syncs?limit=15").then((r) => r.json()),
+      apiFetch("/monitor/overview?days=7").then((r) => r.json()), // 7d window for "failed in period"
+      apiFetch("/monitor/alerts").then((r) => r.json()),
+      fetchWatchStatus(), // never throws → returns {error} shape, safe in Promise.all
     ])
-      .then(([h, s]) => {
+      .then(([h, s, o, a, w]) => {
         setHealth(h);
         setSyncs(s.syncs || []);
+        setOverview(o);
+        setAlerts(a.alerts || []);
+        setInfra(w);
       })
       .catch(console.error)
       .finally(() => {
@@ -36,6 +48,35 @@ export default function HealthPage() {
   if (loading) return <div style={{ color: C.textDim, padding: 40 }}>Loading...</div>;
 
   const svcOrder = ["database", "redis", "celery", "storage"];
+
+  // ── AI Health rollup ──────────────────────────────────────────────
+  const celery = health?.celery || {};
+  const extStatus = overview?.invoices?.by_extraction_status || {};
+  const completed = extStatus.completed || 0;
+  const failed = extStatus.failed || 0;
+  const workers = celery.workers ?? null;
+  const aiAlerts = (alerts || []).filter(
+    (a) => a.category === "extraction" || a.category === "ai"
+  );
+
+  // critical: pipeline can't run · warn: up but failures/alerts · healthy: all good
+  let aiRollup = "healthy";
+  if (celery.status !== "healthy" || !workers) {
+    aiRollup = "critical";
+  } else if (failed > 0 || aiAlerts.length > 0) {
+    aiRollup = "warn";
+  }
+  const aiColor =
+    aiRollup === "critical" ? C.danger : aiRollup === "warn" ? C.warning : C.success;
+  const aiDot =
+    aiRollup === "critical" ? "unhealthy" : aiRollup === "warn" ? "warning" : "healthy";
+
+  // ── Infrastructure helpers ────────────────────────────────────────
+  const infraColor = (s) =>
+    s === "critical" ? C.danger : s === "warn" ? C.warning : s === "healthy" ? C.success : C.textMuted;
+  const infraDot = (s) =>
+    s === "critical" ? "unhealthy" : s === "healthy" ? "healthy" : "warning"; // warn/unknown → amber
+  const m = infra?.metrics || {};
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -57,6 +98,131 @@ export default function HealthPage() {
         >
           {refreshing ? "Refreshing..." : "Refresh"}
         </button>
+      </div>
+
+      {/* AI Health card */}
+      <div
+        style={{
+          background: C.card,
+          border: `1px solid ${aiColor}40`,
+          borderRadius: 12,
+          padding: 20,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <StatusDot status={aiDot} />
+          <span style={{ color: C.text, fontSize: 16, fontWeight: 600 }}>AI Health</span>
+          <span
+            style={{
+              marginLeft: "auto",
+              padding: "2px 8px",
+              borderRadius: 4,
+              fontSize: 11,
+              fontWeight: 600,
+              background: `${aiColor}15`,
+              color: aiColor,
+            }}
+          >
+            {aiRollup === "critical" ? "down" : aiRollup === "warn" ? "degraded" : "healthy"}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: 16,
+          }}
+        >
+          <MetricCard label="Completed" value={fmtInt(completed)} color={C.success} />
+          <MetricCard
+            label="Failed"
+            value={fmtInt(failed)}
+            color={failed > 0 ? C.danger : C.textDim}
+          />
+          <MetricCard
+            label="Workers"
+            value={workers ?? "—"}
+            sub={`${celery.active_tasks ?? 0} active · ${celery.queued_tasks ?? 0} queued`}
+            color={workers > 0 ? C.success : C.danger}
+          />
+          <MetricCard
+            label="Pipeline"
+            value={celery.status === "healthy" ? "Up" : "Down"}
+            color={celery.status === "healthy" ? C.success : C.danger}
+          />
+        </div>
+
+        {aiAlerts.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <AlertBanner alerts={aiAlerts} />
+          </div>
+        )}
+      </div>
+
+      {/* Infrastructure (AWS) */}
+      <div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+          <h3 style={{ color: C.text, fontSize: 14, fontWeight: 600, margin: 0 }}>
+            Infrastructure (AWS)
+          </h3>
+          {!infra?.error && infra?.generated_at && (
+            <span style={{ color: C.textMuted, fontSize: 11 }}>
+              generated {fmtAgo(infra.generated_at)}
+            </span>
+          )}
+        </div>
+
+        {infra?.error ? (
+          <div style={{ color: C.textMuted, fontSize: 12 }}>
+            Infra metrics unavailable — watcher not reachable
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 16,
+            }}
+          >
+            <MetricCard
+              icon={<StatusDot status={infraDot(m.ec2_cpu?.status)} />}
+              label="EC2 CPU"
+              value={m.ec2_cpu?.value != null ? `${m.ec2_cpu.value}%` : "—"}
+              sub={m.ec2_cpu?.error ? m.ec2_cpu.error : `instance ${m.ec2_cpu?.instance_id || "ap-automation"}`}
+              color={m.ec2_cpu?.error ? C.danger : infraColor(m.ec2_cpu?.status)}
+            />
+            <MetricCard
+              icon={<StatusDot status={infraDot(m.rds_cpu?.status)} />}
+              label="RDS CPU"
+              value={m.rds_cpu?.value != null ? `${m.rds_cpu.value}%` : "—"}
+              sub={m.rds_cpu?.error ? m.rds_cpu.error : "instance ap-automation-db"}
+              color={m.rds_cpu?.error ? C.danger : infraColor(m.rds_cpu?.status)}
+            />
+            <MetricCard
+              icon={<StatusDot status={infraDot(m.rds_disk?.status)} />}
+              label="RDS Disk"
+              value={m.rds_disk?.value != null ? `${m.rds_disk.value}%` : "—"}
+              sub={
+                m.rds_disk?.error
+                  ? m.rds_disk.error
+                  : `${m.rds_disk?.free_gb ?? "—"}GB free / ${m.rds_disk?.total_gb ?? "—"}GB`
+              }
+              color={m.rds_disk?.error ? C.danger : infraColor(m.rds_disk?.status)}
+            />
+            <MetricCard
+              icon={<StatusDot status={infraDot(m.rds_connections?.status)} />}
+              label="RDS Connections"
+              value={m.rds_connections?.value ?? "—"}
+              sub={
+                m.rds_connections?.error
+                  ? m.rds_connections.error
+                  : `of ~${m.rds_connections?.ceiling ?? 80} max`
+              }
+              color={m.rds_connections?.error ? C.danger : infraColor(m.rds_connections?.status)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Service cards */}

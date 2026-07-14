@@ -10,9 +10,30 @@ services:
       context: .
       args:
         VITE_API_URL: /api
+        # Baked so email+password login works (invisible Turnstile). Public site key
+        # — same one the main app uses; pairs with the backend secret. NOT a secret.
+        VITE_TURNSTILE_SITE_KEY: "${VITE_TURNSTILE_SITE_KEY:-0x4AAAAAADg6ZHOZAZfDRROd}"
     restart: unless-stopped
     ports:
       - "${PULSE_PORT:-8082}:80"
+    depends_on:
+      - watcher
+    networks:
+      - ap-shared-net
+
+  # Read-only AWS watcher (CloudWatch + describe). Surfaces EC2/RDS health to Pulse.
+  # AWS creds come from the standard boto3 chain — on the box that's the EC2
+  # instance role. No keys are baked into the image. If none resolve, /status
+  # degrades to nulls instead of crashing.
+  watcher:
+    build: ./watcher
+    restart: unless-stopped
+    environment:
+      REGION:           "${REGION:-eu-west-1}"
+      EC2_INSTANCE_ID:  "${EC2_INSTANCE_ID:-i-0dadf7387aadf83c0}"
+      RDS_INSTANCE_ID:  "${RDS_INSTANCE_ID:-ap-automation-db}"
+      RDS_CONN_CEILING: "${RDS_CONN_CEILING:-80}"
+      AWS_REGION:       "${REGION:-eu-west-1}"
     networks:
       - ap-shared-net
 

@@ -1,0 +1,12 @@
+# Keep the production build clean + SAFE.
+# .env.local holds the 90-day admin token (VITE_PULSE_TOKEN) used ONLY for local
+# dev convenience. It must NEVER be baked into the deployed bundle, or the public
+# site would skip login and expose an admin token. Excluding it forces the public
+# build to use the proper email+password login.
+.env.local
+.env*.local
+
+node_modules
+dist
+.git
+.DS_Store
